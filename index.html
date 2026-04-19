@@ -231,5 +231,37 @@ function mergeBoxes(){
  saveGrid();
 }
 </script>
-</body>
+</body> 
+ <!-- FIREBASE START -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "PASTE_API_KEY",
+    authDomain: "PASTE_PROJECT_ID.firebaseapp.com",
+    projectId: "PASTE_PROJECT_ID",
+    storageBucket: "PASTE_PROJECT_ID.appspot.com",
+    messagingSenderId: "PASTE_SENDER_ID",
+    appId: "PASTE_APP_ID"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // SAVE TO FIREBASE FUNCTION
+  async function saveGrid() {
+    const gridData = document.getElementById("grid").innerHTML;
+    try {
+      await addDoc(collection(db, "grids"), {
+        content: gridData,
+        time: Date.now()
+      });
+      alert("Saved online successfully!");
+    } catch (e) {
+      alert("Error saving online");
+    }
+  }
+</script>
+<!-- FIREBASE END -->
 </html>
