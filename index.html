@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Spot Grid</title>
+
+<style>
+body{font-family:Arial;margin:0;text-align:center;background:#f5f5f5;}
+header{background:#111;color:white;padding:15px;position:relative;}
+#adminBtn{position:absolute;top:15px;right:15px;}
+
+.controls{padding:10px;display:none;}
+
+button{
+ background:#ff6a00;color:white;border:none;
+ padding:10px 16px;margin:4px;border-radius:8px;
+ font-size:14px;cursor:pointer;
+}
+
+#grid{
+ display:grid;
+ grid-template-columns:repeat(50,60px);
+ grid-auto-rows:60px;
+ gap:4px;
+ justify-content:center;
+ padding:10px;
+}
+
+.box{
+ background:#eee;
+ border:1px solid #bbb;
+ position:relative;
+ overflow:hidden;
+ cursor:pointer;
+}
+
+.selected{outline:4px solid orange;}
+.box img{width:100%;height:100%;object-fit:cover;pointer-events:none;}
+
+.box a{
+ position:absolute;bottom:0;left:0;right:0;
+ background:rgba(0,0,0,0.7);color:white;
+ text-decoration:none;font-size:12px;padding:3px;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+<h2>My Spot Grid</h2>
+<button id="adminBtn" onclick="adminLogin()">Admin</button>
+</header>
+
+<div class="controls" id="controls">
+<button onclick="addImage()">Upload Image</button>
+<button onclick="insertLink()">Insert Link</button>
+<button onclick="addImageLink()">Insert Image + Link</button>
+<button onclick="mergeBoxes()">Merge Selected</button>
+<button onclick="undo()">Undo</button>
+<button onclick="resetGrid()">Reset</button>
+<button onclick="logout()">Logout</button>
+<input type="file" id="fileInput" accept="image/*" style="display:none">
+</div>
+
+<div id="grid"></div>
+
+<script>
+const PASSWORD="admin123";
+let isAdmin=false;
+
+const grid=document.getElementById("grid");
+const controls=document.getElementById("controls");
+const fileInput=document.getElementById("fileInput");
+
+let selected=[], lastClickedBox=null, history=[];
+
+//// CREATE 50x50 GRID
+let saved = localStorage.getItem("gridHTML");
+
+function createGrid(){
+ grid.innerHTML="";
+ for(let i=0;i<2500;i++){
+  let box=document.createElement("div");
+  box.className="box";
+  grid.appendChild(box);
+ }
+ saveGrid();
+}
+
+if(!saved){
+ createGrid();
+}else{
+ grid.innerHTML=saved;
+ if(grid.querySelectorAll(".box").length < 2500) createGrid();
+}
+
+function saveGrid(){
+ localStorage.setItem("gridHTML",grid.innerHTML);
+}
+
+//// CLICK SYSTEM
+grid.addEventListener("click", function(e){
+ const box = e.target.closest(".box");
+ if(!box) return;
+
+ if(isAdmin){
+  e.preventDefault();
+  box.classList.toggle("selected");
+  if(selected.includes(box))
+    selected = selected.filter(b=>b!==box);
+  else selected.push(box);
+  lastClickedBox = box;
+  return;
+ }
+
+ const link = box.querySelector("a");
+ if(link) window.open(link.href,"_blank");
+});
+
+//// ADMIN LOGIN
+function adminLogin(){
+ let pass=prompt("Enter admin password");
+ if(pass===PASSWORD){
+   isAdmin=true;
+   controls.style.display="block";
+   alert("Admin mode enabled");
+ }else alert("Wrong password");
+}
+
+function logout(){
+ isAdmin=false;
+ controls.style.display="none";
+ selected=[];
+}
+
+//// UNDO / RESET
+function saveState(){history.push(grid.innerHTML); saveGrid();}
+function undo(){
+ if(!history.length) return alert("Nothing to undo");
+ grid.innerHTML=history.pop(); saveGrid();
+}
+function resetGrid(){
+ if(!confirm("Reset grid?")) return;
+ grid.innerHTML=""; history=[]; createGrid();
+}
+
+//// IMAGE ONLY
+function addImage(){
+ if(!lastClickedBox) return alert("Select a box");
+ fileInput.onchange=e=>{
+  const file=e.target.files[0]; if(!file) return;
+  saveState();
+  const r=new FileReader();
+  r.onload=x=>{
+    let link = lastClickedBox.querySelector("a")?.outerHTML || "";
+    lastClickedBox.innerHTML=`<img src="${x.target.result}">${link}`;
+    saveGrid();
+  }
+  r.readAsDataURL(file);
+ }
+ fileInput.click();
+}
+
+//// LINK ONLY
+function insertLink(){
+ if(!lastClickedBox) return alert("Select a box");
+ let url=prompt("Paste link");
+ if(!url) return;
+ saveState();
+ let img = lastClickedBox.querySelector("img")?.outerHTML || "";
+ lastClickedBox.innerHTML = img + `<a href="${url}" target="_blank">Visit</a>`;
+ saveGrid();
+}
+
+//// IMAGE + LINK
+function addImageLink(){
+ if(!lastClickedBox) return alert("Select a box first");
+ let url = prompt("Paste link");
+ if(!url) return;
+
+ fileInput.onchange = e => {
+  const file = e.target.files[0];
+  if(!file) return;
+  saveState();
+  const reader = new FileReader();
+  reader.onload = x => {
+    lastClickedBox.innerHTML =
+      `<img src="${x.target.result}">
+       <a href="${url}" target="_blank">Visit</a>`;
+    saveGrid();
+  }
+  reader.readAsDataURL(file);
+ }
+ fileInput.click();
+}
+
+//// MERGE SELECTED BOXES (PERFECT GRID MERGE)
+function mergeBoxes(){
+ if(selected.length < 2) return alert("Select at least 2 boxes");
+ saveState();
+
+ const boxes = Array.from(grid.children);
+ const cols = 50;
+
+ const indexes = selected.map(b => boxes.indexOf(b));
+ const rows = indexes.map(i => Math.floor(i / cols));
+ const colsArr = indexes.map(i => i % cols);
+
+ const minRow = Math.min(...rows);
+ const maxRow = Math.max(...rows);
+ const minCol = Math.min(...colsArr);
+ const maxCol = Math.max(...colsArr);
+
+ const width = maxCol - minCol + 1;
+ const height = maxRow - minRow + 1;
+
+ const firstIndex = minRow * cols + minCol;
+ const mergedBox = boxes[firstIndex];
+
+ mergedBox.style.gridColumn = `span ${width}`;
+ mergedBox.style.gridRow = `span ${height}`;
+ mergedBox.style.zIndex = "5";
+
+ selected.forEach(box => {
+   if(box !== mergedBox) box.style.display = "none";
+ });
+
+ selected.forEach(b => b.classList.remove("selected"));
+ selected = [];
+ saveGrid();
+}
+</script>
+</body>
+</html>
